@@ -1,3 +1,9 @@
+// =============================================================
+// CareerMap AI — Complete Prisma Schema
+// Database: PostgreSQL 15
+// Generated for production use
+// =============================================================
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
@@ -8,3 +14,1254 @@ datasource db {
   url        = env("DATABASE_URL")
   extensions = [pgcrypto, pg_trgm]
 }
+
+// =============================================================
+// ENUMS
+// =============================================================
+
+enum UserRole {
+  STUDENT
+  PARENT
+  SCHOOL_ADMIN
+  COUNSELOR
+  MENTOR
+  SUPER_ADMIN
+}
+
+enum ClassStream {
+  SCIENCE
+  COMMERCE
+  ARTS
+  UNDECIDED
+}
+
+enum FinancialBackground {
+  LOW
+  MIDDLE
+  UPPER_MIDDLE
+  HIGH
+}
+
+enum WorkStyle {
+  CREATIVE
+  ANALYTICAL
+  PEOPLE_ORIENTED
+  TECHNICAL
+  ENTREPRENEURIAL
+}
+
+enum TraitType {
+  INTEREST
+  STRENGTH
+  VALUE
+  LEARNING_STYLE
+  PERSONALITY
+}
+
+enum TraitSource {
+  ASSESSMENT
+  MANUAL
+  AI_INFERRED
+}
+
+enum CareerMapStatus {
+  EXPLORING
+  COMMITTED
+  ON_TRACK
+  COMPLETED
+  DROPPED
+}
+
+enum AssessmentType {
+  APTITUDE
+  PERSONALITY
+  INTEREST
+  STREAM_SELECTOR
+  COMPETITIVE_READINESS
+}
+
+enum SessionType {
+  COUNSELING
+  ROADMAP
+  EXAM_GUIDANCE
+  STREAM_SELECTION
+  GENERAL
+  EMOTIONAL_SUPPORT
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum PlanTier {
+  FREE
+  STUDENT_PRO
+  SCHOOL_BASIC
+  SCHOOL_PRO
+  ENTERPRISE
+}
+
+enum SchoolBoard {
+  CBSE
+  ICSE
+  STATE
+  IB
+  IGCSE
+  OTHER
+}
+
+enum ExamCategory {
+  ENGINEERING
+  MEDICINE
+  LAW
+  MANAGEMENT
+  CIVIL_SERVICES
+  DEFENCE
+  FINANCE
+  DESIGN
+  ARCHITECTURE
+  TEACHING
+  STATE_LEVEL
+  SCHOLARSHIP
+}
+
+enum ExamDifficulty {
+  EASY
+  MODERATE
+  HARD
+  VERY_HARD
+}
+
+enum ContentType {
+  BLOG
+  VIDEO
+  PODCAST
+  CAREER_GUIDE
+  SUCCESS_STORY
+  WEBINAR_RECORDING
+}
+
+enum NotificationType {
+  EXAM_REMINDER
+  DEADLINE_ALERT
+  SCHOLARSHIP_ALERT
+  ROADMAP_MILESTONE
+  STREAK_REMINDER
+  BADGE_EARNED
+  WEBINAR_INVITE
+  WEEKLY_DIGEST
+  SYSTEM
+}
+
+enum MentorBookingStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum SkillCategory {
+  COMMUNICATION
+  CODING
+  AI_LITERACY
+  PUBLIC_SPEAKING
+  FINANCIAL_LITERACY
+  LEADERSHIP
+  CREATIVITY
+  CRITICAL_THINKING
+  EMOTIONAL_INTELLIGENCE
+  ENTREPRENEURSHIP
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+  EXPIRED
+}
+
+// =============================================================
+// CORE: USERS & AUTHENTICATION
+// =============================================================
+
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String    @unique
+  phone         String?   @unique
+  passwordHash  String?
+  name          String
+  avatarUrl     String?
+  role          UserRole  @default(STUDENT)
+  isVerified    Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  language      String    @default("en")
+  timezone      String    @default("Asia/Kolkata")
+
+  // Relations
+  studentProfile  StudentProfile?
+  parentProfile   ParentProfile?
+  mentorProfile   MentorProfile?
+  schoolAdmin     SchoolAdmin?
+
+  // Auth tokens
+  refreshTokens   RefreshToken[]
+  oauthAccounts   OAuthAccount[]
+
+  // Notifications
+  notifications   Notification[]
+  deviceTokens    DeviceToken[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // soft delete
+
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model OAuthAccount {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String @db.Uuid
+  user       User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String // google, facebook, apple
+  providerId String
+  email      String?
+
+  @@unique([provider, providerId])
+  @@map("oauth_accounts")
+}
+
+model DeviceToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  platform  String   // ios, android, web
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+// =============================================================
+// STUDENTS
+// =============================================================
+
+model StudentProfile {
+  id                  String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String              @unique @db.Uuid
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId            String?             @db.Uuid
+  school              School?             @relation(fields: [schoolId], references: [id])
+
+  // Academic info
+  classLevel          Int                 // 8–16 (16 = graduation)
+  stream              ClassStream         @default(UNDECIDED)
+  board               SchoolBoard?
+
+  // Personal info
+  dob                 DateTime?
+  city                String?
+  state               String?
+  pincode             String?
+
+  // Preferences
+  financialBackground FinancialBackground?
+  preferredWorkStyle  WorkStyle?
+  languagePref        String              @default("en")
+
+  // Goals (free text + structured)
+  goalsText           String?
+  dreamCareer         String?
+
+  // Onboarding
+  onboardingStep      Int                 @default(0)  // 0-5
+  onboardedAt         DateTime?
+
+  // Gamification
+  totalXp             Int                 @default(0)
+  currentLevel        Int                 @default(1)
+  currentStreak       Int                 @default(0)
+  longestStreak       Int                 @default(0)
+  lastActiveAt        DateTime?
+
+  // Plan
+  planTier            PlanTier            @default(FREE)
+  aiChatsUsed         Int                 @default(0)
+  aiChatResetAt       DateTime?
+
+  // Relations
+  traits              StudentTrait[]
+  careerMaps          StudentCareerMap[]
+  aiSessions          AiSession[]
+  assessmentResults   StudentAssessmentResult[]
+  skillLogs           SkillLog[]
+  badges              StudentBadge[]
+  parentLinks         ParentStudentLink[]
+  notifications       Notification[]
+  mentorBookings      MentorBooking[]
+  contentViews        ContentView[]
+  subscription        Subscription?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId])
+  @@index([classLevel])
+  @@index([planTier])
+  @@map("student_profiles")
+}
+
+model StudentTrait {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String      @db.Uuid
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  traitType   TraitType
+  traitKey    String      // e.g. 'technology', 'leadership', 'introvert'
+  score       Float       @default(0.5) // 0.0 – 1.0
+  source      TraitSource @default(MANUAL)
+  assessedAt  DateTime    @default(now())
+
+  @@unique([studentId, traitType, traitKey])
+  @@index([studentId])
+  @@map("student_traits")
+}
+
+// =============================================================
+// PARENTS
+// =============================================================
+
+model ParentProfile {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String   @unique @db.Uuid
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occupation    String?
+  city          String?
+  state         String?
+
+  // Relations
+  studentLinks  ParentStudentLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("parent_profiles")
+}
+
+model ParentStudentLink {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId    String         @db.Uuid
+  parent      ParentProfile  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  studentId   String         @db.Uuid
+  student     StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  relationship String        @default("parent") // parent, guardian, sibling
+  canViewChat Boolean        @default(false)
+  linkedAt    DateTime       @default(now())
+
+  @@unique([parentId, studentId])
+  @@map("parent_student_links")
+}
+
+// =============================================================
+// SCHOOLS (Multi-Tenant SaaS)
+// =============================================================
+
+model School {
+  id                    String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                  String
+  board                 SchoolBoard
+  affiliationNumber     String?     @unique
+  city                  String
+  state                 String
+  pincode               String?
+  website               String?
+  logoUrl               String?
+  contactEmail          String?
+  contactPhone          String?
+
+  // SaaS Plan
+  planTier              PlanTier    @default(FREE)
+  studentLimit          Int         @default(100)
+  subscriptionStatus    SubscriptionStatus @default(TRIALING)
+  subscriptionExpiresAt DateTime?
+  trialEndsAt           DateTime?
+
+  // Features flags
+  whitelabelEnabled     Boolean     @default(false)
+  apiAccessEnabled      Boolean     @default(false)
+  customDomain          String?
+
+  // Relations
+  students              StudentProfile[]
+  admins                SchoolAdmin[]
+  counselors            SchoolCounselor[]
+  aptitudeTests         SchoolAptitudeTest[]
+  reports               SchoolReport[]
+  subscriptions         Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+
+  @@index([state])
+  @@index([planTier])
+  @@map("schools")
+}
+
+model SchoolAdmin {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String  @unique @db.Uuid
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId  String  @db.Uuid
+  school    School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  role      String  @default("admin") // admin, principal, coordinator
+
+  createdAt DateTime @default(now())
+
+  @@map("school_admins")
+}
+
+model SchoolCounselor {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId  String  @db.Uuid
+  school    School  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  phone     String?
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@map("school_counselors")
+}
+
+model SchoolAptitudeTest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId    String   @db.Uuid
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  assessmentId String  @db.Uuid
+  assessment  Assessment @relation(fields: [assessmentId], references: [id])
+  scheduledAt DateTime
+  classLevel  Int?
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("school_aptitude_tests")
+}
+
+model SchoolReport {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  schoolId    String   @db.Uuid
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  reportType  String   // class_aggregate, student_detail, trend
+  classLevel  Int?
+  period      String   // e.g. "2024-Q1"
+  reportUrl   String?  // S3 URL for PDF
+  generatedAt DateTime @default(now())
+
+  @@map("school_reports")
+}
+
+// =============================================================
+// CAREERS & ROADMAPS
+// =============================================================
+
+model Career {
+  id                String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String     @unique
+  slug              String     @unique
+  category          String     // Engineering, Medicine, Law, Arts...
+  subcategory       String?
+  description       String
+  longDescription   String?
+  iconUrl           String?
+  coverImageUrl     String?
+
+  // Financial data (INR)
+  avgSalaryInr      Int?
+  salaryRangeMin    Int?
+  salaryRangeMax    Int?
+  internationalSalaryUsd Int?
+
+  // Scoring (0.0 – 1.0)
+  aiImpactScore     Float      @default(0.3)  // 0 = AI-safe, 1 = highly automatable
+  demandScore       Float      @default(0.5)  // market demand
+  competitionScore  Float      @default(0.5)  // how competitive
+
+  // Requirements
+  streamRequired    ClassStream?
+  minClassLevel     Int?
+  keySubjects       String[]   // ["Physics", "Maths", "Chemistry"]
+  keySkills         String[]
+  requiredTraits    String[]   // trait keys that match well
+
+  // Metadata
+  isActive          Boolean    @default(true)
+  isFutureReady     Boolean    @default(false)
+  isAiProof         Boolean    @default(false)
+  tags              String[]
+
+  // Relations
+  roadmapTemplates  RoadmapTemplate[]
+  studentCareerMaps StudentCareerMap[]
+  examCareerLinks   ExamCareerLink[]
+  collegeCareerLinks CollegeCareerLink[]
+  contentItems      ContentItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([streamRequired])
+  @@index([isActive])
+  @@map("careers")
+}
+
+model RoadmapTemplate {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  careerId      String   @db.Uuid
+  career        Career   @relation(fields: [careerId], references: [id])
+  title         String
+  description   String?
+  totalStages   Int
+  version       Int      @default(1)
+  isDefault     Boolean  @default(true)
+  isPublished   Boolean  @default(false)
+
+  // Relations
+  stages        RoadmapStage[]
+  studentMaps   StudentCareerMap[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([careerId])
+  @@map("roadmap_templates")
+}
+
+model RoadmapStage {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  templateId        String          @db.Uuid
+  template          RoadmapTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  stageOrder        Int
+  title             String          // "Class 10: Foundation Phase"
+  description       String?
+
+  // Class range this stage covers
+  classLevelStart   Int             // e.g. 8
+  classLevelEnd     Int             // e.g. 10
+
+  // Structured content
+  subjects          String[]        // ["Physics", "Chemistry", "Biology"]
+  skills            String[]        // ["Critical thinking", "Lab skills"]
+  exams             String[]        // ["NEET", "AIIMS"]
+  certifications    String[]
+  colleges          String[]
+  activities        String[]
+
+  // Estimated duration
+  durationMonths    Int?
+
+  // Salary / outcome at this stage
+  estimatedSalaryMin Int?
+  estimatedSalaryMax Int?
+
+  createdAt DateTime @default(now())
+
+  @@unique([templateId, stageOrder])
+  @@index([templateId])
+  @@map("roadmap_stages")
+}
+
+model StudentCareerMap {
+  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId     String          @db.Uuid
+  student       StudentProfile  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  careerId      String          @db.Uuid
+  career        Career          @relation(fields: [careerId], references: [id])
+  templateId    String?         @db.Uuid
+  template      RoadmapTemplate? @relation(fields: [templateId], references: [id])
+
+  // AI match quality
+  aiMatchScore  Float           // 0.0 – 1.0
+  matchReasons  String[]        // ["Strong math skills", "Loves technology"]
+
+  // Progress
+  status        CareerMapStatus @default(EXPLORING)
+  currentStage  Int             @default(1)
+  isPrimary     Boolean         @default(false)
+
+  // Notes
+  studentNotes  String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  committedAt DateTime?
+  completedAt DateTime?
+
+  @@unique([studentId, careerId])
+  @@index([studentId])
+  @@index([isPrimary])
+  @@map("student_career_maps")
+}
+
+// =============================================================
+// EXAMS & COLLEGES
+// =============================================================
+
+model Exam {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String         @unique
+  shortName         String         @unique // JEE, NEET, CUET
+  category          ExamCategory
+  conductedBy       String         // NTA, UPSC, etc.
+  description       String?
+  website           String?
+
+  // Eligibility
+  minClassLevel     Int            @default(12)
+  requiredStream    ClassStream?
+  ageMin            Int?
+  ageMax            Int?
+  attempts          Int?           // max attempts allowed
+
+  // Exam details
+  difficulty        ExamDifficulty @default(HARD)
+  totalMarks        Int?
+  duration          Int?           // minutes
+  syllabusUrl       String?
+  syllabus          Json?          // structured syllabus
+
+  // Dates (recurring — stored as month/day patterns)
+  typicalMonthNotification Int?    // month number (1-12)
+  typicalMonthExam        Int?
+  typicalMonthResult      Int?
+
+  // Stats
+  totalApplicants   Int?           // last year
+  totalSeats        Int?
+  cutoffPercentile  Float?
+
+  isActive          Boolean        @default(true)
+  tags              String[]
+
+  // Relations
+  careerLinks       ExamCareerLink[]
+  collegeLinks      CollegeExamLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([requiredStream])
+  @@map("exams")
+}
+
+model ExamCareerLink {
+  examId    String @db.Uuid
+  exam      Exam   @relation(fields: [examId], references: [id])
+  careerId  String @db.Uuid
+  career    Career @relation(fields: [careerId], references: [id])
+  relevance Float  @default(1.0) // how central this exam is to the career
+
+  @@id([examId, careerId])
+  @@map("exam_career_links")
+}
+
+model College {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name            String
+  shortName       String?
+  city            String
+  state           String
+  country         String      @default("India")
+  type            String      // IIT, NIT, Private, Government, Deemed
+  website         String?
+  logoUrl         String?
+  established     Int?
+
+  // Rankings
+  nirfRank        Int?
+  qqsRank         Int?
+  timesRank       Int?
+
+  // Fees (INR per year)
+  feesMin         Int?
+  feesMax         Int?
+
+  // Placement
+  avgPackageInr   Int?
+  maxPackageInr   Int?
+  placementPct    Float?      // % placed last year
+
+  // Scholarships
+  hasScholarship  Boolean     @default(false)
+  scholarshipDetails String?
+
+  isActive        Boolean     @default(true)
+  tags            String[]
+
+  // Relations
+  careerLinks     CollegeCareerLink[]
+  examLinks       CollegeExamLink[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([state])
+  @@index([type])
+  @@map("colleges")
+}
+
+model CollegeCareerLink {
+  collegeId   String  @db.Uuid
+  college     College @relation(fields: [collegeId], references: [id])
+  careerId    String  @db.Uuid
+  career      Career  @relation(fields: [careerId], references: [id])
+  courseName  String  // "B.Tech Computer Science"
+  duration    Int?    // years
+
+  @@id([collegeId, careerId, courseName])
+  @@map("college_career_links")
+}
+
+model CollegeExamLink {
+  collegeId String @db.Uuid
+  college   College @relation(fields: [collegeId], references: [id])
+  examId    String @db.Uuid
+  exam      Exam   @relation(fields: [examId], references: [id])
+  minRank   Int?
+  minScore  Float?
+
+  @@id([collegeId, examId])
+  @@map("college_exam_links")
+}
+
+// =============================================================
+// AI COUNSELOR
+// =============================================================
+
+model AiSession {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId     String         @db.Uuid
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessionType   SessionType    @default(GENERAL)
+  title         String?        // auto-generated from first message
+  planTier      PlanTier
+  totalTokens   Int            @default(0)
+  isActive      Boolean        @default(true)
+  metadata      Json?          // e.g. {careerId, examId} for context
+
+  messages      AiMessage[]
+
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+
+  @@index([studentId])
+  @@index([sessionType])
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String      @db.Uuid
+  session     AiSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role        MessageRole
+  content     String
+  tokenCount  Int         @default(0)
+  isFlagged   Boolean     @default(false)  // content moderation
+  flagReason  String?
+  metadata    Json?       // e.g. {suggestedCareers, retrievedChunks}
+
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@map("ai_messages")
+}
+
+// =============================================================
+// ASSESSMENTS
+// =============================================================
+
+model Assessment {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String
+  type            AssessmentType
+  description     String?
+  instructions    String?
+  totalQuestions  Int
+  durationMinutes Int            @default(30)
+  isPremium       Boolean        @default(false)
+  isPublished     Boolean        @default(false)
+  version         Int            @default(1)
+  targetClassMin  Int?           // min class level
+  targetClassMax  Int?
+
+  // Relations
+  questions       AssessmentQuestion[]
+  results         StudentAssessmentResult[]
+  schoolTests     SchoolAptitudeTest[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isPublished])
+  @@map("assessments")
+}
+
+model AssessmentQuestion {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  assessmentId   String     @db.Uuid
+  assessment     Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  questionOrder  Int
+  questionText   String
+  questionType   String     // mcq, likert, ranking, open_text
+  options        Json?      // [{id, text, traitKey, traitScore}]
+  imageUrl       String?
+  category       String?    // which aptitude dimension this measures
+  points         Int        @default(1)
+
+  @@unique([assessmentId, questionOrder])
+  @@index([assessmentId])
+  @@map("assessment_questions")
+}
+
+model StudentAssessmentResult {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId       String         @db.Uuid
+  student         StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  assessmentId    String         @db.Uuid
+  assessment      Assessment     @relation(fields: [assessmentId], references: [id])
+
+  // Scores by dimension
+  scoreJson       Json           // {"logical": 0.8, "creative": 0.6, ...}
+
+  // AI-generated outputs
+  careerRecs      Json?          // [{careerId, matchScore, reason}]
+  streamRec       ClassStream?
+  personalityType String?        // e.g. "INTJ" or "Investigative"
+  aiSummary       String?        // 2-3 sentence narrative
+
+  // Report
+  pdfReportUrl    String?        // S3 URL
+  reportGeneratedAt DateTime?
+
+  // Attempt tracking
+  attemptNumber   Int            @default(1)
+  timeTakenSeconds Int?
+  completedAt     DateTime       @default(now())
+
+  @@index([studentId])
+  @@index([assessmentId])
+  @@map("student_assessment_results")
+}
+
+// =============================================================
+// SKILLS & GAMIFICATION
+// =============================================================
+
+model Skill {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @unique
+  category    SkillCategory
+  description String?
+  iconUrl     String?
+  maxLevel    Int           @default(5)
+  xpPerLevel  Int           @default(500)
+
+  logs        SkillLog[]
+
+  createdAt DateTime @default(now())
+
+  @@map("skills")
+}
+
+model SkillLog {
+  id            String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId     String         @db.Uuid
+  student       StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  skillId       String         @db.Uuid
+  skill         Skill          @relation(fields: [skillId], references: [id])
+  pointsEarned  Int
+  activityType  String         // watched_video, completed_task, ai_session, etc.
+  activityRef   String?        // optional reference ID
+  loggedAt      DateTime       @default(now())
+
+  @@index([studentId])
+  @@index([skillId])
+  @@map("skill_logs")
+}
+
+model Badge {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String   @unique
+  description String
+  iconUrl     String?
+  category    String   // exploration, skill, streak, achievement, social
+  xpReward    Int      @default(500)
+  condition   Json     // {"type": "login_streak", "value": 30}
+  isPremium   Boolean  @default(false)
+  rarity      String   @default("common") // common, rare, epic, legendary
+
+  studentBadges StudentBadge[]
+
+  createdAt DateTime @default(now())
+
+  @@map("badges")
+}
+
+model StudentBadge {
+  id         String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId  String         @db.Uuid
+  student    StudentProfile @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  badgeId    String         @db.Uuid
+  badge      Badge          @relation(fields: [badgeId], references: [id])
+  earnedAt   DateTime       @default(now())
+  isSeen     Boolean        @default(false)
+
+  @@unique([studentId, badgeId])
+  @@index([studentId])
+  @@map("student_badges")
+}
+
+model XpTransaction {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId   String   @db.Uuid
+  amount      Int      // positive = earned, negative = spent
+  source      String   // login, assessment, ai_chat, badge, referral
+  sourceId    String?  // reference to source entity
+  description String?
+  createdAt   DateTime @default(now())
+
+  @@index([studentId])
+  @@map("xp_transactions")
+}
+
+// =============================================================
+// MENTORSHIP & COMMUNITY
+// =============================================================
+
+model MentorProfile {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @unique @db.Uuid
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline        String
+  bio             String?
+  currentRole     String
+  company         String?
+  yearsExperience Int      @default(0)
+  linkedinUrl     String?
+  profileImageUrl String?
+  isVerified      Boolean  @default(false)
+  isActive        Boolean  @default(true)
+
+  // Expertise
+  careerIds       String[] @db.Uuid // careers they can mentor on
+  skills          String[]
+  languages       String[] @default(["en"])
+
+  // Pricing
+  sessionPriceInr Int?
+  freeSessionAvailable Boolean @default(false)
+
+  // Ratings
+  avgRating       Float?
+  totalSessions   Int    @default(0)
+
+  bookings        MentorBooking[]
+  availability    MentorAvailability[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("mentor_profiles")
+}
+
+model MentorAvailability {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  mentorId    String        @db.Uuid
+  mentor      MentorProfile @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int           // 0=Sun, 6=Sat
+  startTime   String        // "09:00"
+  endTime     String        // "17:00"
+  timezone    String        @default("Asia/Kolkata")
+
+  @@index([mentorId])
+  @@map("mentor_availability")
+}
+
+model MentorBooking {
+  id            String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId     String             @db.Uuid
+  student       StudentProfile     @relation(fields: [studentId], references: [id])
+  mentorId      String             @db.Uuid
+  mentor        MentorProfile      @relation(fields: [mentorId], references: [id])
+  status        MentorBookingStatus @default(PENDING)
+  scheduledAt   DateTime
+  durationMinutes Int              @default(30)
+  meetingUrl    String?
+  notes         String?            // student's questions
+  recordingUrl  String?
+  priceInr      Int?
+  paymentId     String?
+  studentRating Int?               // 1-5
+  studentReview String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  @@index([studentId])
+  @@index([mentorId])
+  @@index([scheduledAt])
+  @@map("mentor_bookings")
+}
+
+model Webinar {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  description   String?
+  hostName      String
+  hostBio       String?
+  coverImageUrl String?
+  scheduledAt   DateTime
+  durationMins  Int      @default(60)
+  meetingUrl    String?
+  recordingUrl  String?
+  maxAttendees  Int?
+  isPremium     Boolean  @default(false)
+  careerIds     String[] @db.Uuid
+  tags          String[]
+  isPublished   Boolean  @default(false)
+
+  registrations WebinarRegistration[]
+
+  createdAt DateTime @default(now())
+
+  @@index([scheduledAt])
+  @@map("webinars")
+}
+
+model WebinarRegistration {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webinarId String   @db.Uuid
+  webinar   Webinar  @relation(fields: [webinarId], references: [id])
+  userId    String   @db.Uuid
+  attended  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([webinarId, userId])
+  @@map("webinar_registrations")
+}
+
+// =============================================================
+// CONTENT MANAGEMENT
+// =============================================================
+
+model ContentItem {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title         String
+  slug          String      @unique
+  type          ContentType
+  excerpt       String?
+  body          String?     // markdown for blog, transcript for podcast
+  videoUrl      String?
+  coverImageUrl String?
+  authorName    String?
+  authorImageUrl String?
+  readTimeMinutes Int?
+  isPremium     Boolean     @default(false)
+  isPublished   Boolean     @default(false)
+  publishedAt   DateTime?
+
+  // SEO
+  metaTitle     String?
+  metaDesc      String?
+  tags          String[]
+
+  // Targeting
+  targetClassMin  Int?
+  targetClassMax  Int?
+  targetStreams   ClassStream[]
+
+  careerId      String?  @db.Uuid
+  career        Career?  @relation(fields: [careerId], references: [id])
+
+  views         ContentView[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([type])
+  @@index([isPublished])
+  @@index([careerId])
+  @@map("content_items")
+}
+
+model ContentView {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contentId   String         @db.Uuid
+  content     ContentItem    @relation(fields: [contentId], references: [id])
+  studentId   String         @db.Uuid
+  student     StudentProfile @relation(fields: [studentId], references: [id])
+  completedAt DateTime?
+  xpEarned    Int            @default(0)
+  viewedAt    DateTime       @default(now())
+
+  @@unique([contentId, studentId])
+  @@map("content_views")
+}
+
+// =============================================================
+// NOTIFICATIONS
+// =============================================================
+
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String           @db.Uuid
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentId   String?          @db.Uuid
+  student     StudentProfile?  @relation(fields: [studentId], references: [id])
+  type        NotificationType
+  title       String
+  body        String
+  data        Json?            // deep link info, entity IDs
+  isRead      Boolean          @default(false)
+  isSent      Boolean          @default(false)
+  sentAt      DateTime?
+  readAt      DateTime?
+  scheduledFor DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([scheduledFor])
+  @@map("notifications")
+}
+
+// =============================================================
+// SUBSCRIPTIONS & PAYMENTS
+// =============================================================
+
+model Subscription {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  studentId         String?            @unique @db.Uuid
+  student           StudentProfile?    @relation(fields: [studentId], references: [id])
+  schoolId          String?            @db.Uuid
+  school            School?            @relation(fields: [schoolId], references: [id])
+  planTier          PlanTier
+  status            SubscriptionStatus @default(ACTIVE)
+  billingCycle      String             @default("monthly") // monthly, annual
+  priceInr          Int
+
+  // Razorpay / Stripe IDs
+  externalSubId     String?            @unique
+  externalCustomerId String?
+
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelledAt        DateTime?
+  cancellationReason String?
+
+  payments          Payment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Payment {
+  id              String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  subscriptionId  String       @db.Uuid
+  subscription    Subscription @relation(fields: [subscriptionId], references: [id])
+  amountInr       Int
+  currency        String       @default("INR")
+  status          String       // success, failed, pending, refunded
+  gateway         String       @default("razorpay")
+  gatewayOrderId  String?      @unique
+  gatewayPaymentId String?     @unique
+  failureReason   String?
+  receiptUrl      String?
+  paidAt          DateTime?
+  createdAt       DateTime     @default(now())
+
+  @@index([subscriptionId])
+  @@map("payments")
+}
+
+// =============================================================
+// REFERRALS
+// =============================================================
+
+model Referral {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  referrerId    String   @db.Uuid       // user who referred
+  referredId    String?  @db.Uuid       // user who signed up
+  code          String   @unique
+  status        String   @default("pending") // pending, converted, rewarded
+  rewardXp      Int      @default(250)
+  convertedAt   DateTime?
+  rewardedAt    DateTime?
+  createdAt     DateTime @default(now())
+
+  @@index([referrerId])
+  @@index([code])
+  @@map("referrals")
+}
+
+// =============================================================
+// AUDIT & COMPLIANCE
+// =============================================================
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId     String?  @db.Uuid
+  action     String   // e.g. "student.profile.updated"
+  entity     String   // table name
+  entityId   String?
+  oldValues  Json?
+  newValues  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model AiContentFlag {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  messageId   String   @db.Uuid
+  reason      String   // inappropriate, misinformation, harmful
+  severity    String   @default("low") // low, medium, high
+  reviewedBy  String?  @db.Uuid
+  reviewedAt  DateTime?
+  resolution  String?  // approved, removed, escalated
+  createdAt   DateTime @default(now())
+
+  @@map("ai_content_flags")
+}
+
